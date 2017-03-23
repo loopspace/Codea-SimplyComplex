@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Author</key>
+	<string>Andrew Stacey</string>
+	<key>Buffer Order</key>
+	<array>
+		<string>Main</string>
+		<string>Touch</string>
+		<string>utf8</string>
+		<string>Utilities</string>
+		<string>Coordinates</string>
+		<string>Colour</string>
+		<string>ColourNames</string>
+		<string>Font</string>
+		<string>UI</string>
+		<string>Complex</string>
+		<string>Menu</string>
+		<string>Slider</string>
+		<string>NumberSpinner</string>
+		<string>ComplexPlane</string>
+		<string>Playlist</string>
+	</array>
+	<key>Created</key>
+	<date>2011-11-19T09:27:53Z</date>
+	<key>Dependencies</key>
+	<array/>
+	<key>Description</key>
+	<string>Explore the complex plane</string>
+	<key>Icon</key>
+	<string>Icon.png</string>
+</dict>
+</plist>
