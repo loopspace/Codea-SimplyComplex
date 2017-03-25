@@ -21,6 +21,7 @@ function ComplexPlane:init(f,ui,t)
     self.font = f
     self.lfont = f:clone()
     self.points = {}
+    self.shapes = {}
     self.bgcolour = Colour.readData("local", "bgcolour", Colour.svg.LightGrey)
     self.axescolour = Colour.readData("local", "axescolour",Colour.svg.DarkSlateBlue)
     self.controlcolour = Colour.readData("local", "controlcolour", Colour.svg.Salmon)
@@ -129,6 +130,10 @@ function ComplexPlane:init(f,ui,t)
     local clm = ui:addMenu({
         menuOpts = menuOpts
     })
+    menuOpts.onActivation = function() m.active = false self:setHelpText("PointsHelp") end
+    local ptm = ui:addMenu({
+        menuOpts = menuOpts
+    })
     menuOpts.minWidth = nil
     menuOpts.onActivation = nil
     menuOpts.anchor = "north east"
@@ -171,21 +176,19 @@ function ComplexPlane:init(f,ui,t)
             return true
         end
     })
-    m:addItem({
-         title = self:getString("SinglePoint"),
-        action = function()
-            self.singleton = not self.singleton
-            Boolean.saveData("local", "singleton", self.singleton)
-            if self.singleton then
-                self.points = { table.remove(self.points)}
-            end
-            return true
+
+    local ptit = m:addItem({
+                  title = self:getString("PointMode"),
+        action = function(x,y)
+            ptm:toggle()
         end,
         highlight = function()
-            return self.singleton
-        end    
+            return ptm.active
+        end,
+        deselect = function()
+            ptm:deactivateDown()
+        end
     })
-
     local cpit = m:addItem({
                   title = self:getString("ConstrainControl"),
         action = function(x,y)
@@ -625,6 +628,64 @@ function ComplexPlane:init(f,ui,t)
         end
     })
     
+    ptm:addItem({
+           title = self:getString("PointMode")
+    })
+    ptm:addItem({
+           title = self:getString("SinglePoint"),
+        action = function()
+            self.pointmode = "Single"
+            saveLocalData("pointmode", self.pointmode)
+            self.points = { table.remove(self.points)}
+            ptit.title:setString(self:getString("SinglePoint"))
+            return true
+        end,
+        highlight = function()
+            return self.pointmode == "Single"
+        end
+    })
+    ptm:addItem({
+           title = self:getString("MultiplePoints"),
+        action = function()
+            self.pointmode = "Multiple"
+            saveLocalData("pointmode", self.pointmode)
+            ptit.title:setString(self:getString("MultiplePoints"))
+            return true
+        end,
+        highlight = function()
+            return self.pointmode == "Multiple"
+        end
+    })
+    ptm:addItem({
+           title = self:getString("LineMode"),
+        action = function()
+            self.pointmode = "Lines"
+            saveLocalData("pointmode", self.pointmode)
+            ptit.title:setString(self:getString("LineMode"))
+            return true
+        end,
+        highlight = function()
+            return self.pointmode == "Lines"
+        end
+    })
+    ptm:addItem({
+           title = self:getString("CircleMode"),
+        action = function()
+            self.pointmode = "Circles"
+            saveLocalData("pointmode", self.pointmode)
+            ptit.title:setString(self:getString("CircleMode"))
+            return true
+        end,
+        highlight = function()
+            return self.pointmode == "Circles"
+        end
+    })
+    ptm:addItem({
+           title = self:getString("MainMenu"),
+        action = function(x,y)
+            ptm:deactivate()
+        end
+    })
     self.control = false
     self.controlpt = Complex(0,0)
     self.ctrlcond = function(z) return z end
@@ -632,7 +693,7 @@ function ComplexPlane:init(f,ui,t)
     self.radius = readLocalData("radius",4)
     self.controlr = readLocalData("controlr",20)
     self.root = 4
-    self.singleton = Boolean.readData("local", "singleton", false)
+    self.pointmode = readLocalData("pointmode","Multiple")
     t:pushHandler(self)
     self:setHelpText("MainHelp")
     self:defineDemo(ui,opit)
@@ -1083,10 +1144,61 @@ function ComplexPlane:processTouches(g)
                         self.ctrltouch = nil
                     end
                 elseif t.updated then
-                    if self.singleton then
+                    if self.pointmode == "Single" then
                         self.points = {z}
-                    else
+                    elseif self.pointmode == "Multiple" then
                         table.insert(self.points,z)
+                    elseif self.pointmode == "Lines" then
+                        if t.touch.state == BEGAN then
+                            table.insert(self.points,z)
+                            self.shapes[t.id] = {
+                                start = z,
+                                finish = z,
+                                location = #self.points,
+                                length = 1
+                            }
+                        elseif self.shapes[t.id] then
+                            local s = self.shapes[t.id]
+                            for k=s.location + s.length,s.location,-1 do
+                                table.remove(self.points,k)
+                            end
+                            s.finish = z
+                            local n = math.max(1,math.floor(s.start:dist(s.finish)*10))
+                            s.location = #self.points+1
+                            s.length = n
+                            for k=1,n do
+                                table.insert(self.points,(1-k/n)*s.start + k/n*s.finish)
+                            end
+                            if t.touch.state == ENDED then
+                                self.shapes[t.id] = nil
+                            end
+                        end
+                    elseif self.pointmode == "Circles" then
+                        if t.touch.state == BEGAN then
+                            table.insert(self.points,z)
+                            self.shapes[t.id] = {
+                                start = z,
+                                finish = z,
+                                location = #self.points,
+                                length = 1
+                            }
+                        elseif self.shapes[t.id] then
+                            local s = self.shapes[t.id]
+                            for k=s.location + s.length,s.location,-1 do
+                                table.remove(self.points,k)
+                            end
+                            s.finish = z - s.start
+                            local n = math.max(1,math.floor(2*math.pi*s.start:dist(s.finish)*10))
+                            s.location = #self.points+1
+                            s.length = n
+                            local w = Complex(math.cos(2*math.pi/n),math.sin(2*math.pi/n))
+                            for k=1,n do
+                                table.insert(self.points,s.start + w^k*s.finish)
+                            end
+                            if t.touch.state == ENDED then
+                                self.shapes[t.id] = nil
+                            end
+                        end
                     end
                 end
             end
@@ -1550,14 +1662,14 @@ function ComplexPlane:defineDemo(ui,opit)
 end
 
 function ComplexPlane:getString(s)
-   if self.Strings[self.language] and self.Strings[self.language][s] then
-      if type(self.Strings[self.language][s]) == "function" then
-     return self.Strings[self.language][s](self)
-      else
-     return self.Strings[self.language][s]
-      end
-   end
-   return ""
+    if self.Strings[self.language] and self.Strings[self.language][s] then
+        if type(self.Strings[self.language][s]) == "function" then
+            return self.Strings[self.language][s](self)
+        else
+            return self.Strings[self.language][s]
+        end
+    end
+    return ">" .. s .. "<"
 end
 
 ComplexPlane.Strings = {}
@@ -1675,6 +1787,13 @@ ComplexPlane.Strings.English = {
     PointSizeHelp = {
     "Drag the slider to adjust the point size and release when the desired size is reached.  The points will adjust dynamically."
     },
+    PointsHelp = {
+    "Choose how to add points to the screen.",
+    "Single point: only the latest point is displayed (useful for roots).",
+    "Multiple points: new points are added to the list without removing existing points.",
+    "Lines: points are evenly spaced on a line between the start and end of the touch (and added to the list of existing points).",
+    "Circles: points are evenly spaced on a circle with centre at the start of the touch and which passes through the end of the touch (and added to the list of existing points).",
+    },
    DemoIntro = {
       "This is a demonstration of what the basic operations on complex numbers look like geometrically.",
     "You can pause or stop the demo using the menu at the bottom.",
@@ -1748,5 +1867,10 @@ ComplexPlane.Strings.English = {
     CustomiseColours = "Customise Colours",
     ResetData = "Reset to initial state",
     Fullscreen = "Full Screen",
-    Splitscreen = "Split Screen"
+    Splitscreen = "Split Screen",
+    PointMode = "Point Mode",
+    SinglePoint = "Single Point",
+    MultiplePoints = "Multiple Points",
+    LineMode = "Lines",
+    CircleMode = "Circles"
 }
